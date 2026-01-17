@@ -76,13 +76,13 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <!-- Dependency Versions - Latest Stable (January 2026) -->
-        <spring-boot.version>3.4.1</spring-boot.version>
+        <spring-boot.version>3.5.9</spring-boot.version>
         <logbook.version>3.10.0</logbook.version>
         <logstash-logback-encoder.version>8.0</logstash-logback-encoder.version>
         <micrometer-tracing.version>1.4.13</micrometer-tracing.version>
         <micrometer.version>1.14.2</micrometer.version>
         <lombok.version>1.18.36</lombok.version>
-        <logback.version>1.5.15</logback.version>
+        <logback.version>1.5.19</logback.version>
         <slf4j.version>2.0.16</slf4j.version>
         
         <!-- Maven Plugin Versions -->
