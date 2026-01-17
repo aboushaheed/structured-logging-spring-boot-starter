@@ -1,0 +1,350 @@
+# =============================================================================
+# LOGGING STARTER - COMPLETE CONFIGURATION REFERENCE
+# =============================================================================
+# This file contains all available configuration options for the logging-starter
+# with detailed explanations and recommended values for production.
+# =============================================================================
+
+spring:
+  application:
+    name: my-application
+
+app:
+  logging:
+    # Master switch for the logging starter
+    enabled: true
+    
+    # Application name (falls back to spring.application.name)
+    application-name: ${spring.application.name}
+
+    # =========================================================================
+    # STATIC TAGS (Layer 1)
+    # =========================================================================
+    # These tags are defined at startup and included in every log event.
+    # Useful for environment identification and infrastructure metadata.
+    static-tags:
+      env: ${ENV:development}
+      region: ${REGION:eu-west-1}
+      datacenter: ${DATACENTER:dc1}
+      app_version: ${APP_VERSION:1.0.0}
+      team: platform
+      service_type: api
+
+    # =========================================================================
+    # JSON OUTPUT CONFIGURATION
+    # =========================================================================
+    json:
+      enabled: true
+      pretty-print: false  # Set to true only for local development
+      include-context: true
+      include-mdc: true
+      include-markers: true
+      include-caller-data: false  # Performance impact - enable only for debugging
+      include-stack-trace: true
+      timestamp-format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+      timezone: UTC
+      timestamp-field-name: "@timestamp"
+      message-field-name: message
+      level-field-name: level
+      logger-field-name: logger
+
+    # =========================================================================
+    # DYNAMIC TAGS (Layer 2)
+    # =========================================================================
+    dynamic-tags:
+      prefix: ""  # Prefix for all dynamic tag field names
+      nested: false  # If true, nest under a single field
+      nested-field-name: dynamic_tags
+
+    # =========================================================================
+    # TRACING (TraceID/SpanID)
+    # =========================================================================
+    tracing:
+      enabled: true
+      trace-id-field: traceId
+      span-id-field: spanId
+
+    # =========================================================================
+    # CORRELATION ID PROPAGATION
+    # =========================================================================
+    correlation:
+      enabled: true
+      header-name: X-Correlation-ID
+      response-header-name: X-Correlation-ID
+      include-request-id-header: true
+      generate-if-missing: true
+      exclude-paths:
+        - /actuator/**
+        - /health/**
+        - /metrics/**
+
+    # =========================================================================
+    # SENSITIVE DATA MASKING (RGPD/GDPR Compliance)
+    # =========================================================================
+    masking:
+      enabled: true
+      default-mode: PARTIAL  # FULL, PARTIAL, HASH, REDACT
+      mask-personal-data: true
+      mask-financial-data: true
+      mask-secrets: true
+      mask-health-data: true
+      
+      # Types of sensitive data to detect and mask
+      enabled-types:
+        - EMAIL
+        - PHONE
+        - CREDIT_CARD
+        - SSN
+        - FRENCH_NIR
+        - PASSWORD
+        - JWT
+        - BEARER_TOKEN
+        - API_KEY
+        - AWS_ACCESS_KEY
+        - AWS_SECRET_KEY
+        - AZURE_STORAGE_KEY
+        - GCP_API_KEY
+        - VAULT_TOKEN
+        - GITHUB_TOKEN
+        - DATABASE_URL
+        - PRIVATE_KEY
+        - IBAN
+        - IP_ADDRESS
+        - MAC_ADDRESS
+        - DATE_OF_BIRTH
+        - PASSPORT
+        - DRIVER_LICENSE
+        - HEALTH_ID
+      
+      # Custom regex patterns for domain-specific sensitive data
+      custom-patterns:
+        internal_id: "INT-[A-Z0-9]{8}"
+        employee_id: "EMP[0-9]{6}"
+      
+      # Field names that should always be masked
+      masked-fields:
+        - password
+        - secret
+        - token
+        - apiKey
+        - api_key
+        - authorization
+        - credential
+        - private_key
+        - mot_de_passe
+        - access_token
+        - refresh_token
+      
+      # Keywords in field names that trigger masking
+      sensitive-keywords:
+        - password
+        - secret
+        - token
+        - key
+        - credential
+        - auth
+        - api_key
+        - private
+        - ssn
+        - card
+        - email
+        - phone
+        - iban
+        - vault
+
+    # =========================================================================
+    # LOG SAMPLING
+    # =========================================================================
+    sampling:
+      enabled: false  # Enable in high-traffic environments
+      strategy: RATE  # RATE, COUNT_BASED, ADAPTIVE
+      rate: 1.0  # 1.0 = 100%, 0.1 = 10%
+      count-interval: 10  # For COUNT_BASED: log 1 in every N
+      always-sample-errors: true  # Never skip ERROR/WARN logs
+      high-load-threshold: 1000  # Events/second for ADAPTIVE
+      critical-load-threshold: 5000
+      
+      # Per-path sampling rates
+      path-rates:
+        "/health": 0.01
+        "/metrics": 0.01
+        "/api/v1/search": 0.5
+      
+      # Per-logger sampling rates
+      logger-rates:
+        "org.hibernate": 0.1
+        "org.springframework": 0.5
+
+    # =========================================================================
+    # ASYNC BUFFER WITH BACKPRESSURE
+    # =========================================================================
+    async:
+      enabled: true
+      buffer-size: 8192
+      backpressure-strategy: DROP_LOW_PRIORITY  # BLOCK, DROP_OLDEST, DROP_LOW_PRIORITY, SAMPLE, OVERFLOW_TO_FILE
+      warning-threshold: 80  # Percentage
+      critical-threshold: 95
+      overflow-file-path: logs/overflow.log
+      sample-rate-under-pressure: 10  # 1 in N when under pressure
+      include-caller-data: false
+
+    # =========================================================================
+    # STRUCTURED EXCEPTION LOGGING
+    # =========================================================================
+    exception:
+      structured: true
+      max-stack-frames: 30
+      max-cause-depth: 5
+      use-simple-class-name: false
+      include-suppressed: true
+      include-stack-hash: true  # Useful for error aggregation
+      application-packages:
+        - com.example
+        - com.mycompany
+
+    # =========================================================================
+    # LOG ENRICHMENT
+    # =========================================================================
+    enrichment:
+      enabled: true
+      include-application: true  # App name, version, profiles
+      include-host: true  # Hostname, IP, K8s metadata
+      include-runtime: true  # JVM info, PID
+      include-git: true  # Git commit, branch
+      include-environment: true  # Selected env vars
+      include-thread: false  # Thread name/id (performance impact)
+      include-memory: false  # Memory usage (performance impact)
+      env-vars: ENV,REGION,DATACENTER,CLUSTER,POD_NAME
+      nested: false
+      nested-field-name: context
+
+    # =========================================================================
+    # LOG ROUTING
+    # =========================================================================
+    routing:
+      enabled: false  # Enable for multi-destination routing
+      default-destinations:
+        - CONSOLE
+      
+      rules:
+        # Route errors to all destinations
+        errors-everywhere:
+          description: "Route all errors to all configured destinations"
+          enabled: true
+          priority: 1
+          min-level: ERROR
+          destinations:
+            - CONSOLE
+            - FILE
+            - ELASTICSEARCH
+          terminal: false
+        
+        # Route security logs
+        security-logs:
+          description: "Route security-related logs"
+          enabled: true
+          priority: 10
+          logger-patterns:
+            - "*.security.*"
+            - "*.auth.*"
+            - "*.audit.*"
+          destinations:
+            - FILE
+          add-tags:
+            log_type: security
+        
+        # Route HTTP traffic
+        http-traffic:
+          description: "Route HTTP traffic logs"
+          enabled: true
+          priority: 20
+          logger-patterns:
+            - "org.zalando.logbook.*"
+            - "http.traffic"
+          destinations:
+            - FILE
+          add-tags:
+            log_type: http_traffic
+
+    # =========================================================================
+    # LOGBOOK (HTTP Traffic Logging)
+    # =========================================================================
+    logbook:
+      enabled: true
+      logger-name: http.traffic
+      level: INFO
+      max-body-size: 8192
+      log-request-body: true
+      log-response-body: true
+      
+      # Headers to mask
+      masked-headers:
+        - Authorization
+        - X-Api-Key
+        - Cookie
+        - Set-Cookie
+      
+      # JSON paths to mask in bodies
+      masked-body-paths:
+        - $.password
+        - $.secret
+        - $.token
+        - $.apiKey
+        - $.creditCard
+        - $.ssn
+      
+      # Paths to exclude from logging
+      exclude-paths:
+        - /actuator/**
+        - /health/**
+        - /favicon.ico
+
+    # =========================================================================
+    # METRICS
+    # =========================================================================
+    metrics:
+      enabled: true
+      prefix: logging
+      include-by-level: true
+      include-by-logger: false  # Can create high cardinality
+      include-latency: true
+      include-buffer-metrics: true
+
+    # =========================================================================
+    # DYNAMIC LOG LEVEL MANAGEMENT
+    # =========================================================================
+    dynamic-level:
+      enabled: true
+      expose-endpoint: true
+      default-duration-minutes: 15
+      max-duration-minutes: 60
+
+    # =========================================================================
+    # CONSOLE APPENDER
+    # =========================================================================
+    console:
+      enabled: true
+      level: DEBUG
+
+    # =========================================================================
+    # FILE APPENDER
+    # =========================================================================
+    file:
+      enabled: false
+      path: logs/application.log
+      level: INFO
+      max-size: 100MB
+      max-history: 30
+      total-size-cap: 3GB
+
+# =============================================================================
+# ACTUATOR ENDPOINTS
+# =============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,loggers,loglevel
+  endpoint:
+    health:
+      show-details: always

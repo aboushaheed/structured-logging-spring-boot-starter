@@ -1,0 +1,40 @@
+# Default configuration for logging-starter
+# These values can be overridden by the consuming application
+
+app:
+  logging:
+    enabled: true
+    json:
+      enabled: true
+      pretty-print: false
+      include-context: true
+      include-mdc: true
+      include-caller-data: false
+      include-stack-trace: true
+      timestamp-format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+      timezone: UTC
+    dynamic-tags:
+      prefix: ""
+      nested: false
+      nested-field-name: dynamic_tags
+    tracing:
+      enabled: true
+      trace-id-field: traceId
+      span-id-field: spanId
+    logbook:
+      enabled: true
+      logger-name: http.traffic
+      level: INFO
+      max-body-size: 8192
+      log-request-body: true
+      log-response-body: true
+    console:
+      enabled: true
+      level: DEBUG
+    file:
+      enabled: false
+      path: logs/application.log
+      level: INFO
+      max-size: 100MB
+      max-history: 30
+      total-size-cap: 3GB

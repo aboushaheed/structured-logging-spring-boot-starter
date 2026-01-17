@@ -1,0 +1,3 @@
+com.izemtechnologies.logging.config.LoggingAutoConfiguration
+com.izemtechnologies.logging.config.LogbookAutoConfiguration
+com.izemtechnologies.logging.config.TracingAutoConfiguration

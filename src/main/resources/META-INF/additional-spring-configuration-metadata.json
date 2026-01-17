@@ -1,0 +1,267 @@
+{
+  "groups": [
+    {
+      "name": "app.logging",
+      "type": "com.izemtechnologies.logging.properties.LoggingProperties",
+      "description": "Configuration properties for structured JSON logging."
+    },
+    {
+      "name": "app.logging.json",
+      "type": "com.izemtechnologies.logging.properties.LoggingProperties$JsonProperties",
+      "description": "JSON output configuration."
+    },
+    {
+      "name": "app.logging.dynamic-tags",
+      "type": "com.izemtechnologies.logging.properties.LoggingProperties$DynamicTagsProperties",
+      "description": "Dynamic runtime tags configuration."
+    },
+    {
+      "name": "app.logging.tracing",
+      "type": "com.izemtechnologies.logging.properties.LoggingProperties$TracingProperties",
+      "description": "Distributed tracing configuration."
+    },
+    {
+      "name": "app.logging.logbook",
+      "type": "com.izemtechnologies.logging.properties.LoggingProperties$LogbookProperties",
+      "description": "HTTP traffic logging configuration."
+    },
+    {
+      "name": "app.logging.console",
+      "type": "com.izemtechnologies.logging.properties.LoggingProperties$ConsoleProperties",
+      "description": "Console appender configuration."
+    },
+    {
+      "name": "app.logging.file",
+      "type": "com.izemtechnologies.logging.properties.LoggingProperties$FileProperties",
+      "description": "File appender configuration."
+    }
+  ],
+  "properties": [
+    {
+      "name": "app.logging.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the logging starter is enabled.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.json.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether JSON output is enabled.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.json.pretty-print",
+      "type": "java.lang.Boolean",
+      "description": "Whether to pretty-print JSON output (not recommended for production).",
+      "defaultValue": false
+    },
+    {
+      "name": "app.logging.json.include-context",
+      "type": "java.lang.Boolean",
+      "description": "Whether to include logging context (logger name, thread, etc.).",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.json.include-mdc",
+      "type": "java.lang.Boolean",
+      "description": "Whether to include MDC values.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.json.include-caller-data",
+      "type": "java.lang.Boolean",
+      "description": "Whether to include caller data (class, method, line number). Has performance implications.",
+      "defaultValue": false
+    },
+    {
+      "name": "app.logging.json.include-stack-trace",
+      "type": "java.lang.Boolean",
+      "description": "Whether to include exception stack traces.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.json.timestamp-format",
+      "type": "java.lang.String",
+      "description": "Custom timestamp format (ISO-8601 by default).",
+      "defaultValue": "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+    },
+    {
+      "name": "app.logging.json.timezone",
+      "type": "java.lang.String",
+      "description": "Timezone for timestamps.",
+      "defaultValue": "UTC"
+    },
+    {
+      "name": "app.logging.static-tags",
+      "type": "java.util.Map<java.lang.String,java.lang.String>",
+      "description": "Static tags to include in every log line. Defined at startup and remain constant."
+    },
+    {
+      "name": "app.logging.dynamic-tags.prefix",
+      "type": "java.lang.String",
+      "description": "Prefix to add to all dynamic tag field names.",
+      "defaultValue": ""
+    },
+    {
+      "name": "app.logging.dynamic-tags.nested",
+      "type": "java.lang.Boolean",
+      "description": "Whether to nest dynamic tags under a single field.",
+      "defaultValue": false
+    },
+    {
+      "name": "app.logging.dynamic-tags.nested-field-name",
+      "type": "java.lang.String",
+      "description": "Field name to use when nesting dynamic tags.",
+      "defaultValue": "dynamic_tags"
+    },
+    {
+      "name": "app.logging.tracing.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether tracing integration is enabled.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.tracing.trace-id-field",
+      "type": "java.lang.String",
+      "description": "Field name for trace ID in JSON output.",
+      "defaultValue": "traceId"
+    },
+    {
+      "name": "app.logging.tracing.span-id-field",
+      "type": "java.lang.String",
+      "description": "Field name for span ID in JSON output.",
+      "defaultValue": "spanId"
+    },
+    {
+      "name": "app.logging.logbook.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether Logbook HTTP traffic logging is enabled.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.logbook.logger-name",
+      "type": "java.lang.String",
+      "description": "Logger name for HTTP traffic logs.",
+      "defaultValue": "http.traffic"
+    },
+    {
+      "name": "app.logging.logbook.level",
+      "type": "java.lang.String",
+      "description": "Log level for HTTP traffic.",
+      "defaultValue": "INFO"
+    },
+    {
+      "name": "app.logging.logbook.masked-headers",
+      "type": "java.util.Set<java.lang.String>",
+      "description": "Headers to mask in logs (sensitive data)."
+    },
+    {
+      "name": "app.logging.logbook.masked-body-paths",
+      "type": "java.util.Set<java.lang.String>",
+      "description": "JSON paths to mask in request/response bodies."
+    },
+    {
+      "name": "app.logging.logbook.max-body-size",
+      "type": "java.lang.Integer",
+      "description": "Maximum body size to log (in bytes).",
+      "defaultValue": 8192
+    },
+    {
+      "name": "app.logging.logbook.log-request-body",
+      "type": "java.lang.Boolean",
+      "description": "Whether to log request bodies.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.logbook.log-response-body",
+      "type": "java.lang.Boolean",
+      "description": "Whether to log response bodies.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.logbook.exclude-paths",
+      "type": "java.util.Set<java.lang.String>",
+      "description": "Paths to exclude from logging (supports ant-style patterns)."
+    },
+    {
+      "name": "app.logging.console.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether console logging is enabled.",
+      "defaultValue": true
+    },
+    {
+      "name": "app.logging.console.level",
+      "type": "java.lang.String",
+      "description": "Log level threshold for console output.",
+      "defaultValue": "DEBUG"
+    },
+    {
+      "name": "app.logging.file.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether file logging is enabled.",
+      "defaultValue": false
+    },
+    {
+      "name": "app.logging.file.path",
+      "type": "java.lang.String",
+      "description": "Log file path.",
+      "defaultValue": "logs/application.log"
+    },
+    {
+      "name": "app.logging.file.level",
+      "type": "java.lang.String",
+      "description": "Log level threshold for file output.",
+      "defaultValue": "INFO"
+    },
+    {
+      "name": "app.logging.file.max-size",
+      "type": "java.lang.String",
+      "description": "Maximum file size before rolling.",
+      "defaultValue": "100MB"
+    },
+    {
+      "name": "app.logging.file.max-history",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of archive files to keep.",
+      "defaultValue": 30
+    },
+    {
+      "name": "app.logging.file.total-size-cap",
+      "type": "java.lang.String",
+      "description": "Total size cap for all archive files.",
+      "defaultValue": "3GB"
+    }
+  ],
+  "hints": [
+    {
+      "name": "app.logging.console.level",
+      "values": [
+        { "value": "TRACE" },
+        { "value": "DEBUG" },
+        { "value": "INFO" },
+        { "value": "WARN" },
+        { "value": "ERROR" }
+      ]
+    },
+    {
+      "name": "app.logging.file.level",
+      "values": [
+        { "value": "TRACE" },
+        { "value": "DEBUG" },
+        { "value": "INFO" },
+        { "value": "WARN" },
+        { "value": "ERROR" }
+      ]
+    },
+    {
+      "name": "app.logging.logbook.level",
+      "values": [
+        { "value": "TRACE" },
+        { "value": "DEBUG" },
+        { "value": "INFO" },
+        { "value": "WARN" },
+        { "value": "ERROR" }
+      ]
+    }
+  ]
+}

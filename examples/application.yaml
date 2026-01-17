@@ -1,0 +1,173 @@
+# =============================================================================
+# Structured JSON Logging Starter - Reference Configuration
+# =============================================================================
+# This file demonstrates all available configuration options for the
+# logging-starter library. Copy the sections you need to your application.yaml.
+# =============================================================================
+
+app:
+  logging:
+    # Master switch to enable/disable the logging starter
+    enabled: true
+
+    # -------------------------------------------------------------------------
+    # JSON Output Configuration
+    # -------------------------------------------------------------------------
+    json:
+      # Enable JSON output (set to false for traditional pattern layout)
+      enabled: true
+      
+      # Pretty print JSON (useful for development, NOT for production)
+      pretty-print: false
+      
+      # Include logger name and thread name in output
+      include-context: true
+      
+      # Include MDC (Mapped Diagnostic Context) values
+      include-mdc: true
+      
+      # Include caller data (class, method, line number)
+      # WARNING: Has significant performance impact
+      include-caller-data: false
+      
+      # Include exception stack traces
+      include-stack-trace: true
+      
+      # Timestamp format (ISO-8601 recommended)
+      timestamp-format: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+      
+      # Timezone for timestamps
+      timezone: UTC
+
+    # -------------------------------------------------------------------------
+    # Static Tags (Layer 1 - YAML Configuration)
+    # -------------------------------------------------------------------------
+    # These tags are defined at startup and included in every log line.
+    # Use environment variables for deployment-specific values.
+    static-tags:
+      # Application identification
+      app_name: ${spring.application.name:my-application}
+      app_version: ${APP_VERSION:1.0.0}
+      
+      # Environment information
+      env: ${ENV:development}
+      region: ${AWS_REGION:us-east-1}
+      
+      # Deployment metadata
+      deployment_id: ${DEPLOYMENT_ID:local}
+      cluster: ${CLUSTER_NAME:default}
+      
+      # Custom business tags
+      team: platform
+      cost_center: engineering
+
+    # -------------------------------------------------------------------------
+    # Dynamic Tags Configuration (Layer 2 - Runtime)
+    # -------------------------------------------------------------------------
+    dynamic-tags:
+      # Optional prefix for all dynamic tag field names
+      # e.g., prefix: "dyn_" would produce "dyn_tenant_id" instead of "tenant_id"
+      prefix: ""
+      
+      # Whether to nest all dynamic tags under a single field
+      nested: false
+      
+      # Field name when nesting is enabled
+      nested-field-name: dynamic_tags
+
+    # -------------------------------------------------------------------------
+    # Distributed Tracing Configuration
+    # -------------------------------------------------------------------------
+    tracing:
+      # Enable automatic TraceID/SpanID injection
+      enabled: true
+      
+      # Field names in JSON output
+      trace-id-field: traceId
+      span-id-field: spanId
+
+    # -------------------------------------------------------------------------
+    # HTTP Traffic Logging (Logbook)
+    # -------------------------------------------------------------------------
+    logbook:
+      # Enable HTTP request/response logging
+      enabled: true
+      
+      # Logger name for HTTP traffic
+      logger-name: http.traffic
+      
+      # Log level for HTTP traffic
+      level: INFO
+      
+      # Headers to mask (sensitive data)
+      masked-headers:
+        - Authorization
+        - X-Api-Key
+        - Cookie
+        - Set-Cookie
+        - X-Auth-Token
+      
+      # JSON paths to mask in request/response bodies
+      # Supports simple property names extracted from JsonPath
+      masked-body-paths:
+        - $.password
+        - $.secret
+        - $.token
+        - $.apiKey
+        - $.creditCard
+        - $.ssn
+        - $.cvv
+      
+      # Maximum body size to log (bytes)
+      max-body-size: 8192
+      
+      # Whether to log request/response bodies
+      log-request-body: true
+      log-response-body: true
+      
+      # Paths to exclude from logging (ant-style patterns)
+      exclude-paths:
+        - /actuator/**
+        - /health/**
+        - /favicon.ico
+        - /swagger-ui/**
+        - /v3/api-docs/**
+
+    # -------------------------------------------------------------------------
+    # Console Appender Configuration
+    # -------------------------------------------------------------------------
+    console:
+      enabled: true
+      level: DEBUG
+
+    # -------------------------------------------------------------------------
+    # File Appender Configuration
+    # -------------------------------------------------------------------------
+    file:
+      enabled: false
+      path: logs/application.log
+      level: INFO
+      max-size: 100MB
+      max-history: 30
+      total-size-cap: 3GB
+
+# =============================================================================
+# Spring Boot Logging Configuration (Standard)
+# =============================================================================
+# These are standard Spring Boot logging properties that work alongside
+# the logging-starter configuration.
+
+logging:
+  level:
+    root: INFO
+    com.example: DEBUG
+    http.traffic: INFO
+    org.springframework: WARN
+    org.zalando.logbook: TRACE
+
+# =============================================================================
+# Spring Application Configuration
+# =============================================================================
+spring:
+  application:
+    name: my-application
