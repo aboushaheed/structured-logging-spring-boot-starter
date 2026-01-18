@@ -37,22 +37,20 @@ import java.io.IOException;
  */
 @Slf4j
 @AutoConfiguration
-@ConditionalOnClass(Tracer.class)
+@ConditionalOnClass(name = "io.micrometer.tracing.Tracer")
 @ConditionalOnProperty(prefix = "app.logging.tracing", name = "enabled", havingValue = "true", matchIfMissing = true)
-@RequiredArgsConstructor
 public class TracingAutoConfiguration {
-
-    private final LoggingProperties properties;
 
     /**
      * Creates a filter that populates MDC with tracing information.
      *
      * @param tracer the Micrometer Tracer (if available)
+     * @param properties the logging properties
      * @return the MDC population filter
      */
     @Bean
     @ConditionalOnBean(Tracer.class)
-    public TracingMdcFilter tracingMdcFilter(Tracer tracer) {
+    public TracingMdcFilter tracingMdcFilter(Tracer tracer, LoggingProperties properties) {
         LoggingProperties.TracingProperties tracingProps = properties.getTracing();
         log.debug("Creating TracingMdcFilter with traceIdField={}, spanIdField={}",
                 tracingProps.getTraceIdField(), tracingProps.getSpanIdField());
@@ -169,11 +167,12 @@ public class TracingAutoConfiguration {
      * Creates a helper bean for manual MDC population.
      *
      * @param tracer the Micrometer Tracer
+     * @param properties the logging properties
      * @return the TracingMdcHelper instance
      */
     @Bean
     @ConditionalOnBean(Tracer.class)
-    public TracingMdcHelper tracingMdcHelper(Tracer tracer) {
+    public TracingMdcHelper tracingMdcHelper(Tracer tracer, LoggingProperties properties) {
         return new TracingMdcHelper(tracer, properties.getTracing());
     }
 }

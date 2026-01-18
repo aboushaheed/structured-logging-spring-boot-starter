@@ -1,7 +1,6 @@
 package com.izemtechnologies.logging.config;
 
 import com.izemtechnologies.logging.properties.LoggingProperties;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -45,22 +44,20 @@ import static org.zalando.logbook.core.Conditions.*;
  */
 @Slf4j
 @AutoConfiguration
-@ConditionalOnClass(Logbook.class)
+@ConditionalOnClass(name = "org.zalando.logbook.Logbook")
 @ConditionalOnWebApplication
 @ConditionalOnProperty(prefix = "app.logging.logbook", name = "enabled", havingValue = "true", matchIfMissing = true)
-@RequiredArgsConstructor
 public class LogbookAutoConfiguration {
-
-    private final LoggingProperties properties;
 
     /**
      * Creates the Logbook instance with configured filters and sink.
      *
+     * @param properties the logging properties
      * @return the configured Logbook instance
      */
     @Bean
     @ConditionalOnMissingBean
-    public Logbook logbook() {
+    public Logbook logbook(LoggingProperties properties) {
         LoggingProperties.LogbookProperties logbookProps = properties.getLogbook();
         
         log.debug("Configuring Logbook with {} masked headers and {} masked body paths",

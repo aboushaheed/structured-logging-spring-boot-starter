@@ -21,7 +21,6 @@ import com.izemtechnologies.logging.sampling.LogSampler;
 import com.izemtechnologies.logging.sampling.SamplingContextCleanupFilter;
 import com.izemtechnologies.logging.sampling.SamplingTurboFilter;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.boot.actuate.health.HealthIndicator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -36,7 +35,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -70,7 +68,6 @@ import java.util.Optional;
 @ConditionalOnClass(name = "ch.qos.logback.classic.LoggerContext")
 @ConditionalOnProperty(prefix = "app.logging", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(LoggingProperties.class)
-@Import({LogbookAutoConfiguration.class, TracingAutoConfiguration.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class LoggingAutoConfiguration {
 
@@ -141,15 +138,26 @@ public class LoggingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "org.springframework.web.reactive.function.client.WebClient")
-    public CorrelationIdWebClientFilter correlationIdWebClientFilter() {
-        return new CorrelationIdWebClientFilter();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public CorrelationIdTaskDecorator correlationIdTaskDecorator() {
         return new CorrelationIdTaskDecorator();
+    }
+
+    // ==================== WebFlux Configuration ====================
+
+    /**
+     * Nested configuration for WebFlux-related beans.
+     * This is isolated in a separate class to avoid class loading issues
+     * when WebFlux is not on the classpath.
+     */
+    @Configuration
+    @ConditionalOnClass(name = "org.springframework.web.reactive.function.client.WebClient")
+    public static class WebFluxConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        public CorrelationIdWebClientFilter correlationIdWebClientFilter() {
+            return new CorrelationIdWebClientFilter();
+        }
     }
 
     // ==================== Request Logging Filter ====================
@@ -224,7 +232,7 @@ public class LoggingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "loggingHealthIndicator")
-    @ConditionalOnClass(HealthIndicator.class)
+    @ConditionalOnClass(name = "org.springframework.boot.actuate.health.HealthIndicator")
     public LoggingHealthIndicator loggingHealthIndicator(Optional<LogSampler> logSampler) {
         log.debug("Creating LoggingHealthIndicator");
         return new LoggingHealthIndicator(logSampler);

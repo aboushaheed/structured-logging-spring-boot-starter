@@ -16,9 +16,15 @@ import com.izemtechnologies.logging.provider.KeyValuePairsJsonProvider;
 import com.izemtechnologies.logging.provider.StaticTagsJsonProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.logstash.logback.composite.loggingevent.*;
-import net.logstash.logback.encoder.LogstashEncoder;
-import net.logstash.logback.fieldnames.LogstashFieldNames;
+import net.logstash.logback.composite.loggingevent.ArgumentsJsonProvider;
+import net.logstash.logback.composite.loggingevent.CallerDataJsonProvider;
+import net.logstash.logback.composite.loggingevent.LogLevelJsonProvider;
+import net.logstash.logback.composite.loggingevent.LoggerNameJsonProvider;
+import net.logstash.logback.composite.loggingevent.LoggingEventFormattedTimestampJsonProvider;
+import net.logstash.logback.composite.loggingevent.LoggingEventThreadNameJsonProvider;
+import net.logstash.logback.composite.loggingevent.MdcJsonProvider;
+import net.logstash.logback.composite.loggingevent.MessageJsonProvider;
+import net.logstash.logback.composite.loggingevent.StackTraceJsonProvider;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
@@ -52,30 +58,38 @@ public class LogbackConfigurator {
      * Configures Logback programmatically based on the provided properties.
      */
     public void configure() {
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        
-        // Get the root logger
-        Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
-        
-        // Remove all existing appenders
-        rootLogger.detachAndStopAllAppenders();
-        
-        // Configure console appender
-        if (properties.getConsole().isEnabled()) {
-            ConsoleAppender<ILoggingEvent> consoleAppender = createConsoleAppender(context);
-            rootLogger.addAppender(consoleAppender);
+        try {
+            LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+
+            // Get the root logger
+            Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
+
+            // Remove all existing appenders
+            rootLogger.detachAndStopAllAppenders();
+
+            // Configure console appender
+            if (properties.getConsole().isEnabled()) {
+                ConsoleAppender<ILoggingEvent> consoleAppender = createConsoleAppender(context);
+                rootLogger.addAppender(consoleAppender);
+            }
+
+            // Configure file appender
+            if (properties.getFile().isEnabled()) {
+                RollingFileAppender<ILoggingEvent> fileAppender = createFileAppender(context);
+                rootLogger.addAppender(fileAppender);
+            }
+
+            // Set root logger level from configuration (default to INFO)
+            String configuredLevel = properties.getConsole().getLevel();
+            Level rootLevel = Level.toLevel(configuredLevel, Level.INFO);
+            rootLogger.setLevel(rootLevel);
+
+            log.info("Logback configured programmatically with JSON output");
+        } catch (Exception e) {
+            // Print to stderr since logger may not be available
+            log.error("ERROR: Failed to configure Logback programmatically");
+            throw new RuntimeException("Failed to configure Logback", e);
         }
-        
-        // Configure file appender
-        if (properties.getFile().isEnabled()) {
-            RollingFileAppender<ILoggingEvent> fileAppender = createFileAppender(context);
-            rootLogger.addAppender(fileAppender);
-        }
-        
-        // Set root logger level
-        rootLogger.setLevel(Level.DEBUG);
-        
-        log.info("Logback configured programmatically with JSON output");
     }
 
     /**
@@ -130,70 +144,90 @@ public class LogbackConfigurator {
     }
 
     /**
+     * Spring Boot internal MDC keys to exclude from JSON output.
+     */
+    private static final java.util.List<String> EXCLUDED_MDC_KEYS = java.util.Arrays.asList(
+        "LOG_CORRELATION_PATTERN",
+        "CONSOLE_LOG_PATTERN",
+        "CONSOLE_LOG_CHARSET",
+        "CONSOLE_LOG_THRESHOLD",
+        "CONSOLE_LOG_STRUCTURED_FORMAT",
+        "FILE_LOG_PATTERN",
+        "FILE_LOG_CHARSET",
+        "FILE_LOG_THRESHOLD",
+        "FILE_LOG_STRUCTURED_FORMAT",
+        "APPLICATION_NAME",
+        "LOGGED_APPLICATION_NAME",
+        "APPLICATION_GROUP",
+        "PID"
+    );
+
+    /**
      * Creates the JSON encoder with all custom providers.
+     * Uses LoggingEventCompositeJsonEncoder for full control over providers.
      */
     private Encoder<ILoggingEvent> createJsonEncoder(LoggerContext context) {
         LoggingProperties.JsonProperties jsonProps = properties.getJson();
-        
-        LogstashEncoder encoder = new LogstashEncoder();
+
+        // Use composite encoder for full control (no default providers)
+        net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder encoder =
+            new net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder();
         encoder.setContext(context);
-        
-        // Configure field names
-        LogstashFieldNames fieldNames = new LogstashFieldNames();
-        fieldNames.setTimestamp("@timestamp");
-        fieldNames.setMessage("message");
-        fieldNames.setLogger("logger");
-        fieldNames.setThread("thread");
-        fieldNames.setLevel("level");
-        fieldNames.setLevelValue("level_value");
-        encoder.setFieldNames(fieldNames);
-        
-        // Configure timestamp
-        encoder.setTimeZone(TimeZone.getTimeZone(jsonProps.getTimezone()).getID());
-        
-        // Configure providers
-        LoggingEventJsonProviders providers = new LoggingEventJsonProviders();
+
+        // Get providers collection
+        var providers = encoder.getProviders();
         providers.setContext(context);
-        
+
         // Timestamp provider
         LoggingEventFormattedTimestampJsonProvider timestampProvider = new LoggingEventFormattedTimestampJsonProvider();
+        timestampProvider.setFieldName("@timestamp");
         timestampProvider.setPattern(jsonProps.getTimestampFormat());
         timestampProvider.setTimeZone(jsonProps.getTimezone());
-        providers.addTimestamp(timestampProvider);
-        
+        providers.addProvider(timestampProvider);
+
         // Log level provider
-        providers.addLogLevel(new LogLevelJsonProvider());
-        
+        LogLevelJsonProvider levelProvider = new LogLevelJsonProvider();
+        levelProvider.setFieldName("level");
+        providers.addProvider(levelProvider);
+
         // Logger name provider
         if (jsonProps.isIncludeContext()) {
-            providers.addLoggerName(new LoggerNameJsonProvider());
-            providers.addThreadName(new LoggingEventThreadNameJsonProvider());
+            LoggerNameJsonProvider loggerNameProvider = new LoggerNameJsonProvider();
+            loggerNameProvider.setFieldName("logger");
+            providers.addProvider(loggerNameProvider);
+
+            LoggingEventThreadNameJsonProvider threadNameProvider = new LoggingEventThreadNameJsonProvider();
+            threadNameProvider.setFieldName("thread");
+            providers.addProvider(threadNameProvider);
         }
-        
+
         // Message provider
-        providers.addMessage(new MessageJsonProvider());
-        
-        // MDC provider
+        MessageJsonProvider messageProvider = new MessageJsonProvider();
+        messageProvider.setFieldName("message");
+        providers.addProvider(messageProvider);
+
+        // MDC provider with exclusions for Spring Boot internal keys
         if (jsonProps.isIncludeMdc()) {
-            providers.addMdc(new MdcJsonProvider());
+            MdcJsonProvider mdcProvider = new MdcJsonProvider();
+            mdcProvider.setExcludeMdcKeyNames(EXCLUDED_MDC_KEYS);
+            providers.addProvider(mdcProvider);
         }
-        
+
         // Caller data provider (performance impact)
         if (jsonProps.isIncludeCallerData()) {
-            providers.addCallerData(new CallerDataJsonProvider());
+            providers.addProvider(new CallerDataJsonProvider());
         }
-        
+
         // Stack trace provider
         if (jsonProps.isIncludeStackTrace()) {
-            StackTraceJsonProvider stackTraceProvider = new StackTraceJsonProvider();
-            providers.addStackTrace(stackTraceProvider);
+            providers.addProvider(new StackTraceJsonProvider());
         }
-        
+
         // Static tags provider
         StaticTagsJsonProvider staticTagsProvider = new StaticTagsJsonProvider();
         staticTagsProvider.setContext(context);
         providers.addProvider(staticTagsProvider);
-        
+
         // Dynamic tags provider
         DynamicTagsJsonProvider dynamicTagsProvider = new DynamicTagsJsonProvider();
         dynamicTagsProvider.setContext(context);
@@ -201,24 +235,22 @@ public class LogbackConfigurator {
         dynamicTagsProvider.setNestTags(properties.getDynamicTags().isNested());
         dynamicTagsProvider.setNestedFieldName(properties.getDynamicTags().getNestedFieldName());
         providers.addProvider(dynamicTagsProvider);
-        
+
         // SLF4J 2.x Key-Value pairs provider
         KeyValuePairsJsonProvider kvpProvider = new KeyValuePairsJsonProvider();
         kvpProvider.setContext(context);
         providers.addProvider(kvpProvider);
-        
+
         // Arguments provider for structured arguments
-        providers.addArguments(new ArgumentsJsonProvider());
-        
-        encoder.setProviders(providers);
-        
+        providers.addProvider(new ArgumentsJsonProvider());
+
         // Pretty print (not recommended for production)
         if (jsonProps.isPrettyPrint()) {
             encoder.setJsonGeneratorDecorator(
                     new net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator()
             );
         }
-        
+
         encoder.start();
         return encoder;
     }
