@@ -151,10 +151,11 @@ public enum SensitiveType {
     ),
 
     /**
-     * CVV/CVC security codes.
+     * CVV/CVC security codes - only matches when in context (e.g., "cvv: 123").
+     * Does not match standalone 3-4 digit numbers to avoid false positives.
      */
     CVV(
-        Pattern.compile("\\b\\d{3,4}\\b"),
+        Pattern.compile("(?i)(?:cvv|cvc|cvv2|cvc2|security[_\\s-]?code)[\"']?\\s*[:=]\\s*[\"']?(\\d{3,4})\\b"),
         "CVV/CVC code"
     ),
 

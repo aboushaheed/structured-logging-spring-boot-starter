@@ -1,10 +1,13 @@
 package com.izemtechnologies.logging.masking;
 
 import com.izemtechnologies.logging.properties.LoggingProperties;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -12,6 +15,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,15 +41,83 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class SensitiveDataMasker {
 
     private final LoggingProperties properties;
 
     private final Map<String, Pattern> customPatternCache = new ConcurrentHashMap<>();
     private final AtomicLong tokenCounter = new AtomicLong(0);
-    private final Map<String, String> tokenStore = new ConcurrentHashMap<>();
-    private final Map<String, String> reverseTokenStore = new ConcurrentHashMap<>();
+
+    // Metrics (optional - set via setMeterRegistry)
+    private Counter maskedFieldsCounter;
+    private Counter maskedValuesCounter;
+    private Timer maskingTimer;
+    private final Map<SensitiveType, Counter> maskedByTypeCounters = new ConcurrentHashMap<>();
+
+    // Internal metrics for when MeterRegistry is not available
+    private final AtomicLong totalMaskedFields = new AtomicLong(0);
+    private final AtomicLong totalMaskedValues = new AtomicLong(0);
+    private final AtomicLong totalMaskingTimeNanos = new AtomicLong(0);
+
+    public SensitiveDataMasker(LoggingProperties properties) {
+        this.properties = properties;
+    }
+
+    /**
+     * Sets the meter registry for metrics collection.
+     * Call this after construction to enable metrics.
+     *
+     * @param meterRegistry the Micrometer meter registry
+     */
+    public void setMeterRegistry(MeterRegistry meterRegistry) {
+        if (meterRegistry != null) {
+            this.maskedFieldsCounter = Counter.builder("logging.masking.fields")
+                .description("Number of fields masked")
+                .register(meterRegistry);
+
+            this.maskedValuesCounter = Counter.builder("logging.masking.values")
+                .description("Number of individual values masked")
+                .register(meterRegistry);
+
+            this.maskingTimer = Timer.builder("logging.masking.time")
+                .description("Time spent masking sensitive data")
+                .register(meterRegistry);
+
+            log.debug("Masking metrics enabled");
+        }
+    }
+
+    /**
+     * Maximum number of tokens to store. Prevents memory leaks from unbounded growth.
+     */
+    private static final int MAX_TOKEN_CACHE_SIZE = 10_000;
+
+    /**
+     * Bounded LRU cache for token storage to prevent memory leaks.
+     */
+    private final Map<String, String> tokenStore = Collections.synchronizedMap(
+        new LinkedHashMap<String, String>(MAX_TOKEN_CACHE_SIZE, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                boolean shouldRemove = size() > MAX_TOKEN_CACHE_SIZE;
+                if (shouldRemove) {
+                    // Also remove from reverse store
+                    reverseTokenStore.remove(eldest.getValue());
+                    log.debug("Token cache full, evicting eldest entry");
+                }
+                return shouldRemove;
+            }
+        }
+    );
+
+    private final Map<String, String> reverseTokenStore = Collections.synchronizedMap(
+        new LinkedHashMap<String, String>(MAX_TOKEN_CACHE_SIZE, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                return size() > MAX_TOKEN_CACHE_SIZE;
+            }
+        }
+    );
 
     /**
      * Default sensitive keywords for automatic field detection.
@@ -81,7 +153,7 @@ public class SensitiveDataMasker {
 
     /**
      * Masks all sensitive data in the input string using all enabled patterns.
-     * 
+     *
      * @param input the input string to mask
      * @return the masked string
      */
@@ -90,52 +162,86 @@ public class SensitiveDataMasker {
             return input;
         }
 
-        String result = input;
+        long startTime = System.nanoTime();
+        boolean masked = false;
 
-        // Apply patterns based on enabled categories
-        LoggingProperties.MaskingProperties maskingProps = properties.getMasking();
+        try {
+            String result = input;
 
-        // Personal Data (RGPD)
-        if (maskingProps.isMaskPersonalData()) {
-            result = maskCategory(result, SensitiveType::isPersonalData);
-        }
+            // Apply patterns based on enabled categories
+            LoggingProperties.MaskingProperties maskingProps = properties.getMasking();
 
-        // Financial Data (PCI-DSS)
-        if (maskingProps.isMaskFinancialData()) {
-            result = maskCategory(result, SensitiveType::isFinancialData);
-        }
+            // Personal Data (RGPD)
+            if (maskingProps.isMaskPersonalData()) {
+                String newResult = maskCategory(result, SensitiveType::isPersonalData);
+                if (!newResult.equals(result)) masked = true;
+                result = newResult;
+            }
 
-        // Secrets & Credentials
-        if (maskingProps.isMaskSecrets()) {
-            result = maskCategory(result, SensitiveType::isSecret);
-        }
+            // Financial Data (PCI-DSS)
+            if (maskingProps.isMaskFinancialData()) {
+                String newResult = maskCategory(result, SensitiveType::isFinancialData);
+                if (!newResult.equals(result)) masked = true;
+                result = newResult;
+            }
 
-        // Health Data (RGPD Special Category)
-        if (maskingProps.isMaskHealthData()) {
-            result = maskCategory(result, SensitiveType::isHealthData);
-        }
+            // Secrets & Credentials
+            if (maskingProps.isMaskSecrets()) {
+                String newResult = maskCategory(result, SensitiveType::isSecret);
+                if (!newResult.equals(result)) masked = true;
+                result = newResult;
+            }
 
-        // Apply specific enabled types
-        for (SensitiveType type : maskingProps.getEnabledTypes()) {
-            if (type.hasPattern()) {
-                result = maskPattern(result, type.getPattern(), type, getDefaultMode());
+            // Health Data (RGPD Special Category)
+            if (maskingProps.isMaskHealthData()) {
+                String newResult = maskCategory(result, SensitiveType::isHealthData);
+                if (!newResult.equals(result)) masked = true;
+                result = newResult;
+            }
+
+            // Apply specific enabled types
+            for (SensitiveType type : maskingProps.getEnabledTypes()) {
+                if (type.hasPattern()) {
+                    String newResult = maskPattern(result, type.getPattern(), type, getDefaultMode());
+                    if (!newResult.equals(result)) masked = true;
+                    result = newResult;
+                }
+            }
+
+            // Apply custom patterns from configuration
+            for (var entry : maskingProps.getCustomPatterns().entrySet()) {
+                Pattern pattern = getOrCompilePattern(entry.getKey(), entry.getValue());
+                if (pattern != null) {
+                    String newResult = maskPattern(result, pattern, SensitiveType.CUSTOM, getDefaultMode());
+                    if (!newResult.equals(result)) masked = true;
+                    result = newResult;
+                }
+            }
+
+            // Apply field-specific patterns (JSON fields)
+            for (String fieldPattern : maskingProps.getMaskedFields()) {
+                String newResult = maskJsonField(result, fieldPattern);
+                if (!newResult.equals(result)) masked = true;
+                result = newResult;
+            }
+
+            return result;
+        } finally {
+            // Record metrics
+            long elapsedNanos = System.nanoTime() - startTime;
+            totalMaskingTimeNanos.addAndGet(elapsedNanos);
+
+            if (masked) {
+                totalMaskedFields.incrementAndGet();
+                if (maskedFieldsCounter != null) {
+                    maskedFieldsCounter.increment();
+                }
+            }
+
+            if (maskingTimer != null) {
+                maskingTimer.record(java.time.Duration.ofNanos(elapsedNanos));
             }
         }
-
-        // Apply custom patterns from configuration
-        for (var entry : maskingProps.getCustomPatterns().entrySet()) {
-            Pattern pattern = getOrCompilePattern(entry.getKey(), entry.getValue());
-            if (pattern != null) {
-                result = maskPattern(result, pattern, SensitiveType.CUSTOM, getDefaultMode());
-            }
-        }
-
-        // Apply field-specific patterns (JSON fields)
-        for (String fieldPattern : maskingProps.getMaskedFields()) {
-            result = maskJsonField(result, fieldPattern);
-        }
-
-        return result;
     }
 
     /**
@@ -591,6 +697,63 @@ public class SensitiveDataMasker {
 
     private MaskingMode getDefaultMode() {
         return properties.getMasking().getDefaultMode();
+    }
+
+    // ==================== Metrics Getters ====================
+
+    /**
+     * Returns the total number of fields that have been masked.
+     *
+     * @return total masked fields count
+     */
+    public long getTotalMaskedFields() {
+        return totalMaskedFields.get();
+    }
+
+    /**
+     * Returns the total number of individual values that have been masked.
+     *
+     * @return total masked values count
+     */
+    public long getTotalMaskedValues() {
+        return totalMaskedValues.get();
+    }
+
+    /**
+     * Returns the total time spent masking in nanoseconds.
+     *
+     * @return total masking time in nanoseconds
+     */
+    public long getTotalMaskingTimeNanos() {
+        return totalMaskingTimeNanos.get();
+    }
+
+    /**
+     * Returns the average masking time in milliseconds.
+     *
+     * @return average masking time in milliseconds, or 0 if no masking has occurred
+     */
+    public double getAverageMaskingTimeMs() {
+        long fields = totalMaskedFields.get();
+        if (fields == 0) {
+            return 0.0;
+        }
+        return (totalMaskingTimeNanos.get() / 1_000_000.0) / fields;
+    }
+
+    /**
+     * Returns a snapshot of masking statistics.
+     *
+     * @return map containing masking statistics
+     */
+    public Map<String, Object> getStatistics() {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("totalMaskedFields", totalMaskedFields.get());
+        stats.put("totalMaskedValues", totalMaskedValues.get());
+        stats.put("totalMaskingTimeMs", totalMaskingTimeNanos.get() / 1_000_000.0);
+        stats.put("averageMaskingTimeMs", getAverageMaskingTimeMs());
+        stats.put("tokenCacheSize", tokenStore.size());
+        return stats;
     }
 
 }

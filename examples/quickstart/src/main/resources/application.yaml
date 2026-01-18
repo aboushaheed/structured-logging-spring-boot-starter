@@ -1,0 +1,58 @@
+# =============================================================================
+# Quickstart Configuration for Structured JSON Logging
+# =============================================================================
+
+spring:
+  application:
+    name: logging-quickstart
+
+# =============================================================================
+# Structured Logging Configuration
+# =============================================================================
+app:
+  logging:
+    enabled: true
+    application-name: ${spring.application.name}
+
+    # Static tags - included in EVERY log line
+    static-tags:
+      env: ${ENVIRONMENT:development}
+      version: "1.0.0"
+
+    # JSON output configuration
+    json:
+      enabled: true
+      pretty-print: true           # Set to false in production
+      include-mdc: true
+      include-context: true
+
+    # Correlation ID for request tracing
+    correlation:
+      enabled: true
+      header-name: X-Correlation-ID
+      generate-if-missing: true
+      include-in-response: true
+
+    # Sensitive data masking (GDPR/PCI-DSS compliant)
+    masking:
+      enabled: true
+      default-mode: PARTIAL
+      mask-personal-data: true
+      mask-financial-data: true
+      mask-secrets: true
+
+    # Console logging
+    console:
+      enabled: true
+
+# =============================================================================
+# Spring Actuator (optional - exposes health and log level endpoints)
+# =============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,loggers
+  endpoint:
+    health:
+      show-details: always

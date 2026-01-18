@@ -182,3 +182,9 @@ site/
 *.backup
 .cache/
 .history/
+/.changes/unreleased/added/.gitkeep
+/.changes/unreleased/changed/.gitkeep
+/.changes/unreleased/deprecated/.gitkeep
+/.changes/unreleased/fixed/.gitkeep
+/.changes/unreleased/removed/.gitkeep
+/.changes/unreleased/security/.gitkeep

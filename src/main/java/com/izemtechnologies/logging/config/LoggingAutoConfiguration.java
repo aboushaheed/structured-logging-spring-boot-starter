@@ -5,6 +5,7 @@ import com.izemtechnologies.logging.correlation.*;
 import com.izemtechnologies.logging.enrichment.DefaultEnrichers;
 import com.izemtechnologies.logging.enrichment.LogEnricher;
 import com.izemtechnologies.logging.filter.RequestLoggingFilter;
+import com.izemtechnologies.logging.health.LoggingHealthIndicator;
 import com.izemtechnologies.logging.level.DynamicLogLevelManager;
 import com.izemtechnologies.logging.level.LogLevelEndpoint;
 import com.izemtechnologies.logging.manager.LogMetadataManager;
@@ -17,8 +18,10 @@ import com.izemtechnologies.logging.provider.*;
 import com.izemtechnologies.logging.routing.LogRouter;
 import com.izemtechnologies.logging.routing.RoutingAppender;
 import com.izemtechnologies.logging.sampling.LogSampler;
+import com.izemtechnologies.logging.sampling.SamplingContextCleanupFilter;
 import com.izemtechnologies.logging.sampling.SamplingTurboFilter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.boot.actuate.health.HealthIndicator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -99,9 +102,15 @@ public class LoggingAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "app.logging.masking", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public SensitiveDataMasker sensitiveDataMasker(LoggingProperties properties) {
+    public SensitiveDataMasker sensitiveDataMasker(LoggingProperties properties,
+                                                    Optional<MeterRegistry> meterRegistry) {
         log.debug("Creating SensitiveDataMasker");
-        return new SensitiveDataMasker(properties);
+        SensitiveDataMasker masker = new SensitiveDataMasker(properties);
+        meterRegistry.ifPresent(registry -> {
+            masker.setMeterRegistry(registry);
+            log.debug("Masking metrics enabled via MeterRegistry");
+        });
+        return masker;
     }
 
     // ==================== Correlation ID ====================
@@ -171,6 +180,25 @@ public class LoggingAutoConfiguration {
         return new LogSampler(properties);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "app.logging.sampling", name = "enabled", havingValue = "true")
+    public SamplingContextCleanupFilter samplingContextCleanupFilter() {
+        log.debug("Creating SamplingContextCleanupFilter");
+        return new SamplingContextCleanupFilter();
+    }
+
+    @Bean
+    @ConditionalOnBean(SamplingContextCleanupFilter.class)
+    public FilterRegistrationBean<SamplingContextCleanupFilter> samplingContextCleanupFilterRegistration(
+            SamplingContextCleanupFilter filter) {
+        FilterRegistrationBean<SamplingContextCleanupFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(filter);
+        registration.setOrder(Ordered.LOWEST_PRECEDENCE);
+        registration.addUrlPatterns("/*");
+        return registration;
+    }
+
     // ==================== Routing ====================
 
     @Bean
@@ -190,6 +218,16 @@ public class LoggingAutoConfiguration {
     public LoggingMetrics loggingMetrics(MeterRegistry meterRegistry) {
         log.debug("Creating LoggingMetrics");
         return new LoggingMetrics(meterRegistry);
+    }
+
+    // ==================== Health Indicator ====================
+
+    @Bean
+    @ConditionalOnMissingBean(name = "loggingHealthIndicator")
+    @ConditionalOnClass(HealthIndicator.class)
+    public LoggingHealthIndicator loggingHealthIndicator(Optional<LogSampler> logSampler) {
+        log.debug("Creating LoggingHealthIndicator");
+        return new LoggingHealthIndicator(logSampler);
     }
 
     // ==================== Dynamic Log Level ====================

@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.regex.Pattern;
 
 /**
  * Servlet filter that manages correlation IDs for distributed tracing.
@@ -44,6 +45,18 @@ import java.io.IOException;
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
     private final LoggingProperties properties;
+
+    /**
+     * Maximum allowed length for correlation IDs to prevent abuse.
+     */
+    private static final int MAX_CORRELATION_ID_LENGTH = 128;
+
+    /**
+     * Pattern for valid correlation IDs: alphanumeric, hyphens, underscores, and dots.
+     * This prevents log injection attacks and ensures IDs are safe for logging.
+     */
+    private static final Pattern VALID_CORRELATION_ID_PATTERN =
+        Pattern.compile("^[a-zA-Z0-9\\-_\\.]{1,128}$");
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -79,36 +92,75 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     /**
      * Extracts correlation ID from request headers.
      * Checks multiple header names for compatibility.
-     * 
+     * Validates the correlation ID format to prevent log injection attacks.
+     *
      * @param request the HTTP request
-     * @return the correlation ID, or null if not found
+     * @return the correlation ID, or null if not found or invalid
      */
     private String extractCorrelationId(HttpServletRequest request) {
         // Check primary header
         String correlationId = request.getHeader(CorrelationIdHolder.HEADER_NAME);
-        
+
         if (StringUtils.hasText(correlationId)) {
-            return correlationId.trim();
+            String validated = validateAndSanitize(correlationId);
+            if (validated != null) {
+                return validated;
+            }
         }
-        
+
         // Check alternative headers
         for (String headerName : CorrelationIdHolder.ALTERNATIVE_HEADERS) {
             correlationId = request.getHeader(headerName);
             if (StringUtils.hasText(correlationId)) {
-                return correlationId.trim();
+                String validated = validateAndSanitize(correlationId);
+                if (validated != null) {
+                    return validated;
+                }
             }
         }
-        
+
         // Check custom header from configuration
         String customHeader = properties.getCorrelation().getHeaderName();
         if (StringUtils.hasText(customHeader)) {
             correlationId = request.getHeader(customHeader);
             if (StringUtils.hasText(correlationId)) {
-                return correlationId.trim();
+                String validated = validateAndSanitize(correlationId);
+                if (validated != null) {
+                    return validated;
+                }
             }
         }
-        
+
         return null;
+    }
+
+    /**
+     * Validates and sanitizes a correlation ID to prevent log injection attacks.
+     *
+     * @param correlationId the raw correlation ID from the request header
+     * @return the sanitized correlation ID, or null if invalid
+     */
+    private String validateAndSanitize(String correlationId) {
+        if (correlationId == null) {
+            return null;
+        }
+
+        String trimmed = correlationId.trim();
+
+        // Check length
+        if (trimmed.isEmpty() || trimmed.length() > MAX_CORRELATION_ID_LENGTH) {
+            log.warn("Correlation ID rejected: invalid length ({}). Generating new ID.",
+                trimmed.length());
+            return null;
+        }
+
+        // Validate format to prevent log injection
+        if (!VALID_CORRELATION_ID_PATTERN.matcher(trimmed).matches()) {
+            log.warn("Correlation ID rejected: invalid format. Generating new ID.");
+            return null;
+        }
+
+        return trimmed;
     }
 
     /**
