@@ -1,0 +1,11 @@
+# ChangeLog Pro Entry
+# Created: 2026-01-18 11:28
+
+type: added
+description: "Add Annotation-Based Masking"
+issue: "LGS-001"
+issue_url: "https://github.com/aboushaheed/structured-logging-spring-boot-starter/issues/LGS-001"
+pr: "1"
+pr_url: "https://github.com/aboushaheed/structured-logging-spring-boot-starter/pull/1"
+author: "souidi"
+timestamp: 1768732113755
