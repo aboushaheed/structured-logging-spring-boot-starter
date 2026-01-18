@@ -1,0 +1,11 @@
+# ChangeLog Pro Entry
+# Created: 2026-01-18 15:12
+
+type: fixed
+description: "fix logbook autoconfigure"
+issue: "LGS-002"
+issue_url: "https://github.com/aboushaheed/structured-logging-spring-boot-starter/issues/LGS-002"
+pr: "3"
+pr_url: "https://github.com/aboushaheed/structured-logging-spring-boot-starter/pull/3"
+author: "souidi"
+timestamp: 1768745542966
