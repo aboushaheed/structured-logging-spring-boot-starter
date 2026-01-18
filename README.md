@@ -48,10 +48,21 @@ A production-grade Spring Boot Starter for **structured JSON logging**. This lib
 Add this single dependency to your `pom.xml`:
 
 ```xml
+<repositories>
+    <repository>
+        <id>github</id>
+        <name>GitHub Packages - Structured Logging Starter</name>
+        <url>https://maven.pkg.github.com/aboushaheed/structured-logging-spring-boot-starter</url>
+        <snapshots>
+            <enabled>true</enabled>
+        </snapshots>
+    </repository>
+</repositories>
+
 <dependency>
     <groupId>com.izemtechnologies</groupId>
     <artifactId>structured-logging-spring-boot-starter</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.2</version>
 </dependency>
 ```
 
